@@ -13,71 +13,57 @@ def create_streamlit_app(llm, portfolio, clean_text):
         "to representative demo and academic projects."
     )
 
-    # ---------------- INPUTS ----------------
     url_input = st.text_input(
         "Enter a Job URL:",
-        placeholder="https://careers.nike.com/job/xyz"
+        placeholder="https://careers.company.com/job/xyz"
     )
 
-    tone = st.selectbox(
-        "Select email tone",
-        ["Professional", "Friendly", "Formal"],
-        index=0
-    )
+    submit_button = st.button("Generate Cold Email")
 
-    col1, col2 = st.columns(2)
-    generate_btn = col1.button("Generate Cold Email")
-    regenerate_btn = col2.button("🔄 Regenerate")
+    if submit_button:
+        if not url_input.strip():
+            st.warning("Please enter a valid job URL.")
+            return
 
-    # ---------------- LOGIC ----------------
-    if (generate_btn or regenerate_btn) and url_input:
         try:
-            with st.spinner("Scraping job description and generating email..."):
-                loader = WebBaseLoader([url_input])
-                documents = loader.load()
+            # 1️⃣ Load webpage
+            loader = WebBaseLoader([url_input])
+            documents = loader.load()
 
-                if not documents:
-                    st.warning("Could not load the job page content.")
-                    return
+            if not documents:
+                st.error("Unable to load content from the given URL.")
+                return
 
-                # Limit content to avoid token explosion
-                raw_text = " ".join(doc.page_content for doc in documents[:5])
-                cleaned_data = clean_text(raw_text)
+            # 2️⃣ Combine page text safely
+            raw_text = " ".join(
+                doc.page_content for doc in documents[:5] if doc.page_content
+            )
 
-                jobs = llm.extract_jobs(cleaned_data)
+            cleaned_data = clean_text(raw_text)
 
-                if not jobs:
-                    st.warning(
-                        "⚠️ No job information could be extracted.\n\n"
-                        "**Reason:** Many job portals (Amazon, Google, LinkedIn) "
-                        "are JavaScript-heavy and block scraping.\n\n"
-                        "**Try instead:**\n"
-                        "- Nike Careers\n"
-                        "- Accenture Careers\n"
-                        "- IBM Jobs\n"
-                        "- Deloitte Careers\n"
-                        "- Infosys / Zoho / TCS job pages"
-                    )
-                    return
+            # 3️⃣ Extract jobs using LLM
+            jobs = llm.extract_jobs(cleaned_data)
 
-                for idx, job in enumerate(jobs, start=1):
-                    st.subheader(f"✉️ Cold Email #{idx}")
+            if not jobs:
+                st.warning("No job information could be extracted.")
+                return
 
-                    skills = job.get("skills", [])
-                    portfolio_links = portfolio.query_links(skills)
+            # 4️⃣ Generate cold emails
+            for idx, job in enumerate(jobs, start=1):
+                st.subheader(f"✉️ Cold Email #{idx}")
 
-                    email = llm.write_mail(
-                        job=job,
-                        links=portfolio_links
-                    )
+                skills = job.get("skills", [])
+                portfolio_links = portfolio.query_links(skills)
 
-                    st.code(email, language="markdown")
+                # ✅ IMPORTANT: positional arguments (matches chains.py)
+                email = llm.write_mail(job, portfolio_links)
+
+                st.code(email, language="markdown")
 
         except Exception as e:
-            st.error(f"❌ An error occurred: {e}")
+            st.error(f"An error occurred: {e}")
 
 
-# ---------------- APP ENTRY ----------------
 if __name__ == "__main__":
     st.set_page_config(
         page_title="Cold Email Generator",

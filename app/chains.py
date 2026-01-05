@@ -12,100 +12,96 @@ load_dotenv()
 class Chain:
     def __init__(self):
         self.llm = ChatGroq(
-            temperature=0.4,  # balanced creativity
+            temperature=0.3,  # allows variation, avoids repetition
             groq_api_key=os.getenv("GROQ_API_KEY"),
             model_name="llama-3.1-8b-instant"
         )
 
     def extract_jobs(self, cleaned_text):
+        """
+        Extract job information from scraped text.
+        Always returns a list of job dictionaries.
+        """
+
         prompt_extract = PromptTemplate.from_template(
             """
             ### SCRAPED TEXT FROM WEBSITE:
             {page_data}
 
             ### INSTRUCTION:
-            Extract job information from the above content.
+            The text above is from a job or careers webpage.
 
-            Return a JSON object (or list) with EXACTLY these keys:
+            Extract the job information and return JSON with these keys:
             - role
             - experience
-            - skills
+            - skills (list)
             - description
 
-            If information is missing, make a reasonable assumption.
-            Return ONLY valid JSON. No explanation.
+            Rules:
+            - Use ENGLISH only
+            - If information is missing, infer reasonably
+            - Return ONLY valid JSON
+            - No explanations or extra text
 
-            ### JSON:
+            ### VALID JSON:
             """
         )
 
         chain_extract = prompt_extract | self.llm
-        res = chain_extract.invoke({"page_data": cleaned_text})
+        response = chain_extract.invoke({"page_data": cleaned_text})
 
         try:
             parser = JsonOutputParser()
-            jobs = parser.parse(res.content)
+            parsed = parser.parse(response.content)
         except OutputParserException:
-            raise OutputParserException("Failed to parse job information.")
+            raise OutputParserException(
+                "Failed to parse job information. Page may block scraping."
+            )
 
-        return jobs if isinstance(jobs, list) else [jobs]
+        # Always return list
+        return parsed if isinstance(parsed, list) else [parsed]
 
-    def write_mail(
-        self,
-        job_description: str,
-        links: list[str],
-        tone: str,
-        company_name: str
-    ) -> str:
+    def write_mail(self, job, links):
+        """
+        Generate a cold email based on extracted job and portfolio links.
+        """
+
         prompt_email = PromptTemplate.from_template(
             """
-            You are Santhosh, an AI & Data Science Consultant at Santhosh AI Labs.
-
-            Santhosh AI Labs builds intelligent, data-driven solutions using
-            AI, automation, and analytics.
-
-            NOTE:
-            The portfolio links provided are representative demo and academic
-            projects showcasing capability, not client work.
-
-            Company Name:
-            {company_name}
-
-            ### JOB DESCRIPTION:
+            ### JOB DETAILS:
             {job_description}
 
-            ### RELEVANT PORTFOLIO LINKS:
+            ### CONTEXT:
+            You are Santhosh, an aspiring software and data professional.
+
+            The portfolio links provided are representative demo and academic projects.
+            They are meant to showcase relevant technical capabilities,
+            not to claim official client work.
+
+            ### TASK:
+            Write a professional cold email to the hiring team:
+
+            - Use ENGLISH only
+            - Personalize the email based on the job role and skills
+            - Reference the portfolio links naturally
+            - Be concise, confident, and respectful
+            - Avoid company names like AtliQ
+            - Do NOT mention AI, LLMs, or automation
+            - No preamble or explanation
+
+            ### PORTFOLIO LINKS:
             {link_list}
-
-            ### INSTRUCTION:
-            Write a {tone} cold email tailored to this role.
-
-            Rules:
-            - Do NOT invent clients or experience
-            - Do NOT mention any company unless stated above
-            - Avoid generic or repetitive phrasing
-            - Keep it concise and professional
-            - End with a polite call-to-action
-
-            Return the email in the following structure:
-            Subject:
-            Email Body:
-            Call To Action:
 
             ### EMAIL:
             """
         )
 
         chain_email = prompt_email | self.llm
-        res = chain_email.invoke({
-            "job_description": job_description,
-            "link_list": links,
-            "tone": tone,
-            "company_name": company_name
-        })
+        response = chain_email.invoke(
+            {
+                "job_description": job,
+                "link_list": links
+            }
+        )
 
-        return res.content
-
-
-if __name__ == "__main__":
-    print("GROQ API KEY LOADED:", bool(os.getenv("GROQ_API_KEY")))
+        return response.content

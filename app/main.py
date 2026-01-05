@@ -7,14 +7,24 @@ from utils.text_utils import clean_text
 from utils.pdf_export import generate_pdf
 
 
+def normalize_skills(skills):
+    """Flatten + stringify skills safely"""
+    normalized = []
+
+    for s in skills:
+        if isinstance(s, list):
+            normalized.extend([str(x) for x in s])
+        else:
+            normalized.append(str(s))
+
+    return list(set(normalized))
+
+
 def create_streamlit_app(llm, portfolio):
     st.title("📧 Cold Email Generator")
     st.caption("Generate personalized cold emails from job postings")
 
-    url_input = st.text_input(
-        "Enter a Job URL:",
-        placeholder="https://careers.company.com/job/xyz"
-    )
+    url = st.text_input("Enter a Job URL")
 
     tone = st.selectbox(
         "Select email tone",
@@ -22,31 +32,24 @@ def create_streamlit_app(llm, portfolio):
     )
 
     col1, col2 = st.columns(2)
-    generate_btn = col1.button("Generate Cold Email")
-    regenerate_btn = col2.button("🔁 Regenerate")
+    generate = col1.button("Generate Cold Email")
+    regenerate = col2.button("🔁 Regenerate")
 
-    if (generate_btn or regenerate_btn) and url_input:
+    if (generate or regenerate) and url:
         try:
-            loader = WebBaseLoader([url_input])
+            loader = WebBaseLoader([url])
             docs = loader.load()
 
-            raw_text = " ".join(doc.page_content for doc in docs[:5])
-            cleaned_text = clean_text(raw_text)
+            raw_text = " ".join(d.page_content for d in docs[:5])
+            cleaned = clean_text(raw_text)
 
-            jobs = llm.extract_jobs(cleaned_text)
+            jobs = llm.extract_jobs(cleaned)
 
-            if not jobs:
-                st.warning("No job information could be extracted.")
-                return
-
-            for idx, job in enumerate(jobs, start=1):
+            for idx, job in enumerate(jobs, 1):
                 st.subheader(f"✉️ Cold Email #{idx}")
 
-                # 🔑 FIX: convert skills list → string
-                skills = job.get("skills", [])
-                skills_text = ", ".join(skills) if isinstance(skills, list) else str(skills)
-
-                links = portfolio.query_links(skills_text)
+                skills = normalize_skills(job.get("skills", []))
+                links = portfolio.query_links(skills)
 
                 email = llm.write_mail(
                     job=job,
@@ -57,16 +60,15 @@ def create_streamlit_app(llm, portfolio):
                 st.code(email, language="markdown")
 
                 pdf = generate_pdf(email)
-
                 st.download_button(
-                    label="⬇️ Export as PDF",
-                    data=pdf,
+                    "⬇️ Export as PDF",
+                    pdf,
                     file_name="cold_email.pdf",
                     mime="application/pdf"
                 )
 
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error(f"Error: {e}")
 
 
 if __name__ == "__main__":

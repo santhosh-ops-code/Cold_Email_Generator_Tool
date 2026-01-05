@@ -11,7 +11,7 @@ load_dotenv()
 class Chain:
     def __init__(self):
         self.llm = ChatGroq(
-            temperature=0.4,
+            temperature=0.3,
             groq_api_key=os.getenv("GROQ_API_KEY"),
             model_name="llama-3.1-8b-instant"
         )
@@ -19,60 +19,52 @@ class Chain:
     def extract_jobs(self, cleaned_text):
         prompt = PromptTemplate.from_template(
             """
-            ### SCRAPED JOB PAGE TEXT:
-            {page_data}
+            You are given scraped job text.
 
-            ### INSTRUCTION:
-            Extract job information and return JSON with keys:
+            Extract job info as JSON with keys:
             role, experience, skills (list), description.
+
+            TEXT:
+            {page_data}
 
             Return ONLY valid JSON.
             """
         )
 
         chain = prompt | self.llm
-        response = chain.invoke({"page_data": cleaned_text})
+        result = chain.invoke({"page_data": cleaned_text})
 
         try:
-            parser = JsonOutputParser()
-            parsed = parser.parse(response.content)
+            parsed = JsonOutputParser().parse(result.content)
         except OutputParserException:
-            raise OutputParserException("Failed to parse job data")
+            raise ValueError("Failed to parse job data")
 
         return parsed if isinstance(parsed, list) else [parsed]
 
     def write_mail(self, job, links, tone):
         prompt = PromptTemplate.from_template(
             """
-            ### JOB DETAILS:
-            {job_data}
+            You are Santhosh, a candidate applying for the role below.
 
-            ### PORTFOLIO LINKS:
-            {portfolio_links}
+            JOB:
+            {job}
 
-            ### TONE:
-            {tone}
+            PORTFOLIO LINKS:
+            {links}
 
-            ### INSTRUCTION:
-            You are Santhosh, an aspiring professional.
-            Write a cold email applying for the role above.
+            TONE: {tone}
 
-            Rules:
-            - Language: English only
-            - Tone must match selection
-            - Mention portfolio links naturally
-            - Do NOT claim real client work
-            - No preamble
-
-            ### EMAIL:
+            Write a professional cold email.
+            Do NOT mention demo or fake projects.
+            Keep it realistic and concise.
             """
         )
 
         chain = prompt | self.llm
-        result = chain.invoke({
-            "job_data": str(job),
-            "portfolio_links": "\n".join(links),
+        res = chain.invoke({
+            "job": job,
+            "links": "\n".join(links),
             "tone": tone
         })
 
-        return result.content
+        return res.content

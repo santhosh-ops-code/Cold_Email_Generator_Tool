@@ -12,7 +12,7 @@ load_dotenv()
 class Chain:
     def __init__(self):
         self.llm = ChatGroq(
-            temperature=0.3,  # avoids repetition but stays professional
+            temperature=0.4,  # balanced creativity
             groq_api_key=os.getenv("GROQ_API_KEY"),
             model_name="llama-3.1-8b-instant"
         )
@@ -26,14 +26,14 @@ class Chain:
             ### INSTRUCTION:
             Extract job information from the above content.
 
-            Return a JSON object (or list of objects) with EXACTLY these keys:
+            Return a JSON object (or list) with EXACTLY these keys:
             - role
             - experience
             - skills
             - description
 
-            If some fields are missing, make a reasonable assumption.
-            Return ONLY valid JSON. No explanations.
+            If information is missing, make a reasonable assumption.
+            Return ONLY valid JSON. No explanation.
 
             ### JSON:
             """
@@ -50,7 +50,13 @@ class Chain:
 
         return jobs if isinstance(jobs, list) else [jobs]
 
-    def write_mail(self, job_description: str, links: list[str]) -> str:
+    def write_mail(
+        self,
+        job_description: str,
+        links: list[str],
+        tone: str,
+        company_name: str
+    ) -> str:
         prompt_email = PromptTemplate.from_template(
             """
             You are Santhosh, an AI & Data Science Consultant at Santhosh AI Labs.
@@ -62,6 +68,9 @@ class Chain:
             The portfolio links provided are representative demo and academic
             projects showcasing capability, not client work.
 
+            Company Name:
+            {company_name}
+
             ### JOB DESCRIPTION:
             {job_description}
 
@@ -69,14 +78,19 @@ class Chain:
             {link_list}
 
             ### INSTRUCTION:
-            Write a professional, personalized cold email for this role.
-            Guidelines:
-            - Do NOT mention any company unless stated in the job description
+            Write a {tone} cold email tailored to this role.
+
+            Rules:
             - Do NOT invent clients or experience
-            - Keep it concise and role-specific
-            - Highlight relevant skills and value
-            - End with a polite call-to-action
+            - Do NOT mention any company unless stated above
             - Avoid generic or repetitive phrasing
+            - Keep it concise and professional
+            - End with a polite call-to-action
+
+            Return the email in the following structure:
+            Subject:
+            Email Body:
+            Call To Action:
 
             ### EMAIL:
             """
@@ -85,7 +99,9 @@ class Chain:
         chain_email = prompt_email | self.llm
         res = chain_email.invoke({
             "job_description": job_description,
-            "link_list": links
+            "link_list": links,
+            "tone": tone,
+            "company_name": company_name
         })
 
         return res.content

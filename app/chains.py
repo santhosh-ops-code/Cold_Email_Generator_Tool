@@ -44,21 +44,36 @@ class Chain:
     def write_mail(self, job, links, tone):
         prompt = PromptTemplate.from_template(
             """
-            You are Santhosh, a candidate applying for the role below.
+    You are Santhosh, an early-career professional from Santhosh AI Labs applying for the role below.
 
-            JOB:
-            {job}
+    STRICT RULES:
+    - Do NOT invent years of experience.
+    - Do NOT exaggerate seniority.
+    - Use a realistic student / fresher / junior profile.
+    - You MUST include a section titled "Portfolio Links".
+    - Under "Portfolio Links", list ALL links exactly as provided.
+    - Do NOT summarize the links.
+    - Do NOT omit the links.
 
-            PORTFOLIO LINKS:
-            {links}
+    JOB DESCRIPTION:
+    {job}
 
-            TONE: {tone}
+    PORTFOLIO LINKS (PRINT EXACTLY):
+    {links}
 
-            Write a professional cold email.
-            Keep it realistic and concise.
-            """
+    EMAIL TONE:
+    {tone}
+
+    Write a concise, professional cold email.
+
+    End EXACTLY with:
+    Best regards,
+    Santhosh
+    Santhosh AI Labs
+    """
         )
 
+        # 🔐 Flatten links safely (FIXES your error)
         flat_links = []
         for l in links:
             if isinstance(l, list):
@@ -68,9 +83,10 @@ class Chain:
 
         chain = prompt | self.llm
         res = chain.invoke({
-            "job": job,
+            "job": str(job),
             "links": "\n".join(flat_links),
             "tone": tone
         })
 
         return res.content
+

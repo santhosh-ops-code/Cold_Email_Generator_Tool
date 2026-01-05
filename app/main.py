@@ -6,92 +6,78 @@ from portfolio import Portfolio
 from utils import clean_text
 
 
-# ---------- Helper ----------
-def extract_company_name(text: str) -> str:
-    lines = text.split("\n")
-    for line in lines[:5]:
-        if len(line.strip()) > 3:
-            return line.strip()[:50]
-    return "the company"
-
-
-# ---------- Streamlit App ----------
-def create_streamlit_app(llm, portfolio):
+def create_streamlit_app(llm, portfolio, clean_text):
     st.title("📧 Cold Email Generator")
     st.caption(
         "Generate personalized cold emails by mapping job requirements "
         "to representative demo and academic projects."
     )
 
+    # ---------------- INPUTS ----------------
     url_input = st.text_input(
         "Enter a Job URL:",
-        placeholder="https://careers.company.com/job/xyz"
+        placeholder="https://careers.nike.com/job/xyz"
     )
 
     tone = st.selectbox(
         "Select email tone",
-        ["Professional", "Friendly", "Concise", "Confident"]
+        ["Professional", "Friendly", "Formal"],
+        index=0
     )
 
     col1, col2 = st.columns(2)
-    with col1:
-        generate_btn = st.button("Generate Cold Email")
-    with col2:
-        regen_btn = st.button("🔁 Regenerate")
+    generate_btn = col1.button("Generate Cold Email")
+    regenerate_btn = col2.button("🔄 Regenerate")
 
-    if (generate_btn or regen_btn) and url_input:
+    # ---------------- LOGIC ----------------
+    if (generate_btn or regenerate_btn) and url_input:
         try:
-            with st.spinner("Scraping job posting..."):
+            with st.spinner("Scraping job description and generating email..."):
                 loader = WebBaseLoader([url_input])
                 documents = loader.load()
 
+                if not documents:
+                    st.warning("Could not load the job page content.")
+                    return
+
+                # Limit content to avoid token explosion
                 raw_text = " ".join(doc.page_content for doc in documents[:5])
-                cleaned_text = clean_text(raw_text)
-                company_name = extract_company_name(cleaned_text)
+                cleaned_data = clean_text(raw_text)
 
-            with st.spinner("Extracting job details..."):
-                jobs = llm.extract_jobs(cleaned_text)
+                jobs = llm.extract_jobs(cleaned_data)
 
-            if not jobs:
-                st.warning("No job information could be extracted.")
-                return
+                if not jobs:
+                    st.warning(
+                        "⚠️ No job information could be extracted.\n\n"
+                        "**Reason:** Many job portals (Amazon, Google, LinkedIn) "
+                        "are JavaScript-heavy and block scraping.\n\n"
+                        "**Try instead:**\n"
+                        "- Nike Careers\n"
+                        "- Accenture Careers\n"
+                        "- IBM Jobs\n"
+                        "- Deloitte Careers\n"
+                        "- Infosys / Zoho / TCS job pages"
+                    )
+                    return
 
-            portfolio.load_portfolio()
+                for idx, job in enumerate(jobs, start=1):
+                    st.subheader(f"✉️ Cold Email #{idx}")
 
-            for idx, job in enumerate(jobs, start=1):
-                st.subheader(f"✉️ Cold Email #{idx}")
+                    skills = job.get("skills", [])
+                    portfolio_links = portfolio.query_links(skills)
 
-                skills = job.get("skills", [])
-                links = portfolio.query_links(skills)[:3]
+                    email = llm.write_mail(
+                        job=job,
+                        links=portfolio_links
+                    )
 
-                email = llm.write_mail(
-                    job_description=job.get("description", str(job)),
-                    links=links,
-                    tone=tone,
-                    company_name=company_name
-                )
-
-                # -------- Display structured email --------
-                if "Subject:" in email:
-                    subject, rest = email.split("Subject:", 1)[1].split("\n", 1)
-                    st.markdown("### 📌 Subject")
-                    st.write(subject.strip())
-                    st.markdown("### ✉️ Email Body")
-                    st.write(rest.strip())
-                else:
                     st.code(email, language="markdown")
 
-                st.download_button(
-                    "⬇️ Download Email",
-                    email,
-                    file_name="cold_email.txt"
-                )
-
         except Exception as e:
-            st.error("An error occurred while generating the email.")
-            st.exception(e)
+            st.error(f"❌ An error occurred: {e}")
 
 
+# ---------------- APP ENTRY ----------------
 if __name__ == "__main__":
     st.set_page_config(
         page_title="Cold Email Generator",
@@ -102,4 +88,4 @@ if __name__ == "__main__":
     chain = Chain()
     portfolio = Portfolio()
 
-    create_streamlit_app(chain, portfolio)
+    create_streamlit_app(chain, portfolio, clean_text)

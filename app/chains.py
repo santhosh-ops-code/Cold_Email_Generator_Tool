@@ -54,7 +54,7 @@ class Chain:
     - Under "Portfolio Links", list links which are matching,relevant or closer to the job profile. if all are matching give 2-3 utmost
     - DOn;t give much spaces between the content make the e-mail look more realisitc
     - Do NOT summarize the links.
-    - Do NOT omit the links.
+    - Do NOT omit the links. If no skills are matching then you can omit and summarize in 1-2 lines relevant to the jo profile.
 
     JOB DESCRIPTION:
     {job}

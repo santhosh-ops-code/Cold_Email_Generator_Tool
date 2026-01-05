@@ -54,12 +54,20 @@ class Chain:
         return parsed if isinstance(parsed, list) else [parsed]
 
     def write_mail(self, job, links, tone):
+        # ✅ SAFELY FORMAT PORTFOLIO LINKS
+        formatted_links = []
+        for item in links:
+            if isinstance(item, (list, tuple)):
+                formatted_links.append(f"{item[1]}: {item[0]}")
+            else:
+                formatted_links.append(str(item))
+
         prompt = PromptTemplate.from_template(
             """
             ### JOB DETAILS:
             {job}
 
-            ### PORTFOLIO LINKS:
+            ### PORTFOLIO PROJECTS (Demo / Academic):
             {links}
 
             ### TONE:
@@ -67,13 +75,12 @@ class Chain:
 
             ### INSTRUCTION:
             You are Santhosh, an aspiring professional reaching out regarding the above role.
-            Write a cold email tailored to the job description.
 
-            IMPORTANT RULES:
+            Write a realistic cold email:
             - Use ONLY English
             - Do NOT claim client work
-            - Treat portfolio links as demo or academic projects
-            - Keep the email realistic and professional
+            - Treat portfolio links as demo/academic projects
+            - Professional, concise, and relevant
             - Include a subject line
             - No preamble text
 
@@ -85,7 +92,7 @@ class Chain:
         response = chain.invoke(
             {
                 "job": str(job),
-                "links": ", ".join(links),
+                "links": "\n".join(formatted_links),
                 "tone": tone
             }
         )

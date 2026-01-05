@@ -51,7 +51,8 @@ class Chain:
     - Do NOT exaggerate seniority.
     - Use a realistic student / fresher / junior profile.
     - You MUST include a section titled "Portfolio Links".
-    - Under "Portfolio Links", list ALL links exactly as provided.
+    - Under "Portfolio Links", list links which are matching,relevant or closer to the job profile. if all are matching give 2-3 utmost
+    - DOn;t give much spaces between the content make the e-mail look more realisitc
     - Do NOT summarize the links.
     - Do NOT omit the links.
 

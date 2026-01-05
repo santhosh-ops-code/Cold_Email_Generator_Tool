@@ -6,57 +6,49 @@ from portfolio import Portfolio
 from utils import clean_text
 
 
-def create_streamlit_app(llm, portfolio, clean_text):
+def create_streamlit_app(llm, portfolio):
     st.title("📧 Cold Email Generator")
-    st.caption(
-        "Generate personalized cold emails by mapping job requirements "
-        "to representative demo and academic projects."
-    )
+    st.caption("Generate personalized cold emails from job postings")
 
     url_input = st.text_input(
         "Enter a Job URL:",
         placeholder="https://careers.company.com/job/xyz"
     )
 
-    submit_button = st.button("Generate Cold Email")
+    tone = st.selectbox(
+        "Select email tone",
+        ["Professional", "Friendly", "Confident"]
+    )
 
-    if submit_button:
-        if not url_input.strip():
-            st.warning("Please enter a valid job URL.")
-            return
+    col1, col2 = st.columns([1, 1])
+    generate_btn = col1.button("Generate Cold Email")
+    regenerate_btn = col2.button("🔁 Regenerate")
 
+    if (generate_btn or regenerate_btn) and url_input:
         try:
-            # 1️⃣ Load webpage
             loader = WebBaseLoader([url_input])
             documents = loader.load()
 
-            if not documents:
-                st.error("Unable to load content from the given URL.")
-                return
+            raw_text = " ".join(doc.page_content for doc in documents[:5])
+            cleaned_text = clean_text(raw_text)
 
-            # 2️⃣ Combine page text safely
-            raw_text = " ".join(
-                doc.page_content for doc in documents[:5] if doc.page_content
-            )
-
-            cleaned_data = clean_text(raw_text)
-
-            # 3️⃣ Extract jobs using LLM
-            jobs = llm.extract_jobs(cleaned_data)
+            jobs = llm.extract_jobs(cleaned_text)
 
             if not jobs:
                 st.warning("No job information could be extracted.")
                 return
 
-            # 4️⃣ Generate cold emails
             for idx, job in enumerate(jobs, start=1):
                 st.subheader(f"✉️ Cold Email #{idx}")
 
                 skills = job.get("skills", [])
-                portfolio_links = portfolio.query_links(skills)
+                links = portfolio.query_links(skills)
 
-                # ✅ IMPORTANT: positional arguments (matches chains.py)
-                email = llm.write_mail(job, portfolio_links)
+                email = llm.write_mail(
+                    job=job,
+                    links=links,
+                    tone=tone
+                )
 
                 st.code(email, language="markdown")
 
@@ -73,5 +65,6 @@ if __name__ == "__main__":
 
     chain = Chain()
     portfolio = Portfolio()
+    portfolio.load_portfolio()
 
-    create_streamlit_app(chain, portfolio, clean_text)
+    create_streamlit_app(chain, portfolio)

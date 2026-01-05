@@ -1,7 +1,11 @@
 streamlit
 pandas
 numpy
-langchain
-chromadb
 python-dotenv
+
+langchain
+langchain-community
+chromadb
 groq
+requests
+beautifulsoup4

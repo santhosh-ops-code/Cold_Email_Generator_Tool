@@ -11,3 +11,4 @@ langchain-groq
 
 chromadb
 groq
+reportlab

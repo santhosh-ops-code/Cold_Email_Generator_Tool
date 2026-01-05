@@ -1,3 +1,4 @@
+from utils.pdf_export import generate_pdf
 import streamlit as st
 from langchain_community.document_loaders import WebBaseLoader
 
@@ -51,6 +52,15 @@ def create_streamlit_app(llm, portfolio):
                 )
 
                 st.code(email, language="markdown")
+                pdf = generate_pdf(email)
+
+                st.download_button(
+                    label="⬇️ Export as PDF",
+                    data=pdf,
+                    file_name="cold_email.pdf",
+                    mime="application/pdf"
+                )
+
 
         except Exception as e:
             st.error(f"An error occurred: {e}")

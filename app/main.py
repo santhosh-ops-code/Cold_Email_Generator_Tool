@@ -1,75 +1,63 @@
 import streamlit as st
-from dotenv import load_dotenv
-import os
+from langchain_community.document_loaders import WebBaseLoader
 
 from chains import Chain
 from portfolio import Portfolio
 from utils import clean_text
 
-# -------------------------------------------------
-# Basic Streamlit setup
-# -------------------------------------------------
-st.set_page_config(
-    layout="wide",
-    page_title="Cold Email Generator",
-    page_icon="📧"
-)
 
-st.title("📧 Cold Mail Generator")
-st.write("Generate personalized cold emails from job postings.")
+def create_streamlit_app(llm, portfolio, clean_text):
+    st.title("📧 Cold Email Generator")
+    st.caption("Generate personalized cold emails directly from job postings")
 
-load_dotenv()  # local use; Streamlit Cloud uses Secrets
+    url_input = st.text_input(
+        "Enter a Job URL:",
+        placeholder="https://careers.company.com/job/xyz"
+    )
+
+    submit_button = st.button("Generate Cold Email")
+
+    if submit_button and url_input:
+        try:
+            loader = WebBaseLoader([url_input])
+            documents = loader.load()
+
+            raw_text = " ".join(doc.page_content for doc in documents[:5])
+            data = clean_text(raw_text)
+
+            jobs = llm.extract_jobs(data)
+
+            if not jobs:
+                st.warning("No job information could be extracted.")
+                return
+
+            for idx, job in enumerate(jobs, start=1):
+                st.subheader(f"✉️ Cold Email #{idx}")
+
+                skills = job.get("skills", [])
+                links = portfolio.query_links(skills)
+
+                email = llm.write_mail(
+                    job_description=job,
+                    portfolio_links=links,
+                    job_url=url_input
+                )
+
+                st.code(email, language="markdown")
+
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
 
 
-# -------------------------------------------------
-# UI Inputs
-# -------------------------------------------------
-url_input = st.text_input(
-    "Enter a Job URL:",
-    value="https://jobs.nike.com/job/R-33460"
-)
+if __name__ == "__main__":
+    st.set_page_config(
+        page_title="Cold Email Generator",
+        page_icon="📧",
+        layout="wide"
+    )
 
-submit_button = st.button("Generate Cold Email")
+    chain = Chain()
+    portfolio = Portfolio()
 
+    create_streamlit_app(chain, portfolio, clean_text)
 
-# -------------------------------------------------
-# Button Action (IMPORTANT: heavy logic here only)
-# -------------------------------------------------
-if submit_button:
-    if not url_input:
-        st.warning("Please enter a valid URL.")
-    else:
-        with st.spinner("Analyzing job posting and generating email..."):
-            try:
-                # 🔥 IMPORTS INSIDE BUTTON (CRITICAL)
-                from langchain_community.document_loaders import WebBaseLoader
-
-                # Initialize core components
-                chain = Chain()
-                portfolio = Portfolio()
-
-                # Load website content
-                loader = WebBaseLoader(url_input)
-                page_content = loader.load().pop().page_content
-                data = clean_text(page_content)
-
-                # Load portfolio data
-                portfolio.load_portfolio()
-
-                # Extract jobs
-                jobs = chain.extract_jobs(data)
-
-                if not jobs:
-                    st.warning("No job roles found on the page.")
-                else:
-                    for idx, job in enumerate(jobs, start=1):
-                        skills = job.get("skills", [])
-                        links = portfolio.query_links(skills)
-                        email = chain.write_mail(job, links)
-
-                        st.subheader(f"✉️ Cold Email #{idx}")
-                        st.code(email, language="markdown")
-
-            except Exception as e:
-                st.error("❌ An error occurred while generating the email.")
-                st.exception(e)

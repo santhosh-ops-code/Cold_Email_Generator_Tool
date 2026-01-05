@@ -21,21 +21,16 @@ def create_streamlit_app(llm, portfolio):
         ["Professional", "Friendly", "Confident"]
     )
 
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns(2)
     generate_btn = col1.button("Generate Cold Email")
     regenerate_btn = col2.button("🔁 Regenerate")
 
-    # Session state for caching
-    if "jobs" not in st.session_state:
-        st.session_state.jobs = None
-
-    # First-time generation
-    if generate_btn and url_input:
+    if (generate_btn or regenerate_btn) and url_input:
         try:
             loader = WebBaseLoader([url_input])
             docs = loader.load()
 
-            raw_text = " ".join(d.page_content for d in docs[:5])
+            raw_text = " ".join(doc.page_content for doc in docs[:5])
             cleaned_text = clean_text(raw_text)
 
             jobs = llm.extract_jobs(cleaned_text)
@@ -44,43 +39,34 @@ def create_streamlit_app(llm, portfolio):
                 st.warning("No job information could be extracted.")
                 return
 
-            st.session_state.jobs = jobs
+            for idx, job in enumerate(jobs, start=1):
+                st.subheader(f"✉️ Cold Email #{idx}")
+
+                # 🔑 FIX: convert skills list → string
+                skills = job.get("skills", [])
+                skills_text = ", ".join(skills) if isinstance(skills, list) else str(skills)
+
+                links = portfolio.query_links(skills_text)
+
+                email = llm.write_mail(
+                    job=job,
+                    links=links,
+                    tone=tone
+                )
+
+                st.code(email, language="markdown")
+
+                pdf = generate_pdf(email)
+
+                st.download_button(
+                    label="⬇️ Export as PDF",
+                    data=pdf,
+                    file_name="cold_email.pdf",
+                    mime="application/pdf"
+                )
 
         except Exception as e:
-            st.error(f"Error while fetching job data: {e}")
-            return
-
-    # Regenerate without scraping again
-    if regenerate_btn and st.session_state.jobs:
-        pass
-
-    # Render emails
-    if st.session_state.jobs:
-        for idx, job in enumerate(st.session_state.jobs, start=1):
-            st.subheader(f"✉️ Cold Email #{idx}")
-
-            skills = job.get("skills", [])
-            links = portfolio.query_links(skills)
-
-            job_with_tone = {
-                **job,
-                "tone": tone
-            }
-
-            email = llm.write_mail(
-                job=job_with_tone,
-                links=links
-            )
-
-            st.code(email, language="markdown")
-
-            pdf = generate_pdf(email)
-            st.download_button(
-                label="⬇️ Export as PDF",
-                data=pdf,
-                file_name=f"cold_email_{idx}.pdf",
-                mime="application/pdf"
-            )
+            st.error(f"An error occurred: {e}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 import os
 from dotenv import load_dotenv
-
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
@@ -18,64 +17,62 @@ class Chain:
         )
 
     def extract_jobs(self, cleaned_text):
-        prompt_extract = PromptTemplate.from_template(
+        prompt = PromptTemplate.from_template(
             """
-            ### SCRAPED TEXT FROM WEBSITE:
+            ### SCRAPED JOB PAGE TEXT:
             {page_data}
 
             ### INSTRUCTION:
-            The scraped text is from a job/careers page.
-            Extract job information and return JSON with these keys:
-            role, experience, skills, description.
+            Extract job information and return JSON with keys:
+            role, experience, skills (list), description.
 
             Return ONLY valid JSON.
-            ### JSON:
             """
         )
 
-        chain = prompt_extract | self.llm
+        chain = prompt | self.llm
         response = chain.invoke({"page_data": cleaned_text})
 
         try:
             parser = JsonOutputParser()
-            result = parser.parse(response.content)
+            parsed = parser.parse(response.content)
         except OutputParserException:
-            raise OutputParserException("Failed to parse job data.")
+            raise OutputParserException("Failed to parse job data")
 
-        return result if isinstance(result, list) else [result]
+        return parsed if isinstance(parsed, list) else [parsed]
 
-    def write_mail(self, job, links):
-        tone = job.get("tone", "Professional")
-
-        prompt_email = PromptTemplate.from_template(
+    def write_mail(self, job, links, tone):
+        prompt = PromptTemplate.from_template(
             """
             ### JOB DETAILS:
-            {job_description}
+            {job_data}
+
+            ### PORTFOLIO LINKS:
+            {portfolio_links}
+
+            ### TONE:
+            {tone}
 
             ### INSTRUCTION:
-            You are Santhosh, a software & data professional.
-            Write a {tone} cold email applying for the above role.
+            You are Santhosh, an aspiring professional.
+            Write a cold email applying for the role above.
 
-            Important rules:
-            - This is NOT client work
-            - Portfolio links are demo/academic projects
-            - Be honest, realistic, and concise
-            - Do NOT mention AtliQ or any company name
-            - Do NOT exaggerate experience
-
-            Include the most relevant portfolio links:
-            {link_list}
+            Rules:
+            - Language: English only
+            - Tone must match selection
+            - Mention portfolio links naturally
+            - Do NOT claim real client work
+            - No preamble
 
             ### EMAIL:
             """
         )
 
-        chain = prompt_email | self.llm
-
-        response = chain.invoke({
-            "job_description": str(job),
-            "link_list": "\n".join(links),
+        chain = prompt | self.llm
+        result = chain.invoke({
+            "job_data": str(job),
+            "portfolio_links": "\n".join(links),
             "tone": tone
         })
 
-        return response.content.strip()
+        return result.content

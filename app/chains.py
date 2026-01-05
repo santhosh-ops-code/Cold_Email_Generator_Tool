@@ -55,15 +55,21 @@ class Chain:
             TONE: {tone}
 
             Write a professional cold email.
-            Do NOT mention demo or fake projects.
             Keep it realistic and concise.
             """
         )
 
+        flat_links = []
+        for l in links:
+            if isinstance(l, list):
+                flat_links.extend([str(x) for x in l])
+            else:
+                flat_links.append(str(l))
+
         chain = prompt | self.llm
         res = chain.invoke({
             "job": job,
-            "links": "\n".join(links),
+            "links": "\n".join(flat_links),
             "tone": tone
         })
 

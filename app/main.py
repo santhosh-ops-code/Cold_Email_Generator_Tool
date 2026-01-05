@@ -6,7 +6,7 @@ from portfolio import Portfolio
 from utils import clean_text
 
 
-def create_streamlit_app(llm, portfolio, clean_text):
+def create_streamlit_app(llm, portfolio):
     st.title("📧 Cold Email Generator")
     st.caption("Generate personalized cold emails directly from job postings")
 
@@ -15,21 +15,28 @@ def create_streamlit_app(llm, portfolio, clean_text):
         placeholder="https://careers.company.com/job/xyz"
     )
 
-    submit_button = st.button("Generate Cold Email")
+    generate_btn = st.button("Generate Cold Email")
 
-    if submit_button and url_input:
+    if generate_btn and url_input:
         try:
-            loader = WebBaseLoader([url_input])
-            documents = loader.load()
+            with st.spinner("Scraping job page..."):
+                loader = WebBaseLoader([url_input])
+                documents = loader.load()
 
-            raw_text = " ".join(doc.page_content for doc in documents[:5])
-            data = clean_text(raw_text)
+                raw_text = " ".join(
+                    doc.page_content for doc in documents[:5]
+                )
 
-            jobs = llm.extract_jobs(data)
+                cleaned_text = clean_text(raw_text)
+
+            with st.spinner("Extracting job details..."):
+                jobs = llm.extract_jobs(cleaned_text)
 
             if not jobs:
                 st.warning("No job information could be extracted.")
                 return
+
+            portfolio.load_portfolio()
 
             for idx, job in enumerate(jobs, start=1):
                 st.subheader(f"✉️ Cold Email #{idx}")
@@ -38,9 +45,8 @@ def create_streamlit_app(llm, portfolio, clean_text):
                 links = portfolio.query_links(skills)
 
                 email = llm.write_mail(
-                    job_description=job,
-                    portfolio_links=links,
-                    job_url=url_input
+                    job_description=job.get("description", str(job)),
+                    links=links
                 )
 
                 st.code(email, language="markdown")
@@ -59,5 +65,4 @@ if __name__ == "__main__":
     chain = Chain()
     portfolio = Portfolio()
 
-    create_streamlit_app(chain, portfolio, clean_text)
-
+    create_streamlit_app(chain, portfolio)

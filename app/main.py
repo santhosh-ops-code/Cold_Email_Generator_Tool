@@ -8,25 +8,24 @@ from utils import clean_text
 
 def create_streamlit_app(llm, portfolio):
     st.title("📧 Cold Email Generator")
-    st.caption("Generate personalized cold emails directly from job postings")
+    st.caption(
+        "Generate personalized cold emails by mapping job requirements "
+        "to representative demo and academic projects."
+    )
 
     url_input = st.text_input(
         "Enter a Job URL:",
         placeholder="https://careers.company.com/job/xyz"
     )
 
-    generate_btn = st.button("Generate Cold Email")
-
-    if generate_btn and url_input:
+    if st.button("Generate Cold Email") and url_input:
         try:
-            with st.spinner("Scraping job page..."):
+            with st.spinner("Scraping job posting..."):
                 loader = WebBaseLoader([url_input])
                 documents = loader.load()
 
-                raw_text = " ".join(
-                    doc.page_content for doc in documents[:5]
-                )
-
+                # Use diverse content, not just first line
+                raw_text = " ".join(doc.page_content for doc in documents[:5])
                 cleaned_text = clean_text(raw_text)
 
             with st.spinner("Extracting job details..."):
@@ -42,7 +41,7 @@ def create_streamlit_app(llm, portfolio):
                 st.subheader(f"✉️ Cold Email #{idx}")
 
                 skills = job.get("skills", [])
-                links = portfolio.query_links(skills)
+                links = portfolio.query_links(skills)[:3]  # limit links for realism
 
                 email = llm.write_mail(
                     job_description=job.get("description", str(job)),
@@ -52,7 +51,8 @@ def create_streamlit_app(llm, portfolio):
                 st.code(email, language="markdown")
 
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error("An error occurred while generating the email.")
+            st.exception(e)
 
 
 if __name__ == "__main__":

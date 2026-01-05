@@ -1,16 +1,18 @@
 import os
+from dotenv import load_dotenv
+
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.exceptions import OutputParserException
-from dotenv import load_dotenv
 
 load_dotenv()
+
 
 class Chain:
     def __init__(self):
         self.llm = ChatGroq(
-            temperature=0.4,  # ✅ avoids repeated outputs
+            temperature=0.3,  # avoids repetition but stays professional
             groq_api_key=os.getenv("GROQ_API_KEY"),
             model_name="llama-3.1-8b-instant"
         )
@@ -22,13 +24,15 @@ class Chain:
             {page_data}
 
             ### INSTRUCTION:
-            The scraped text is from a job/careers page.
-            Extract the job posting and return JSON with:
+            Extract job information from the above content.
+
+            Return a JSON object (or list of objects) with EXACTLY these keys:
             - role
             - experience
             - skills
             - description
 
+            If some fields are missing, make a reasonable assumption.
             Return ONLY valid JSON. No explanations.
 
             ### JSON:
@@ -39,32 +43,40 @@ class Chain:
         res = chain_extract.invoke({"page_data": cleaned_text})
 
         try:
-            json_parser = JsonOutputParser()
-            parsed = json_parser.parse(res.content)
+            parser = JsonOutputParser()
+            jobs = parser.parse(res.content)
         except OutputParserException:
-            raise OutputParserException("Failed to parse job data.")
+            raise OutputParserException("Failed to parse job information.")
 
-        return parsed if isinstance(parsed, list) else [parsed]
+        return jobs if isinstance(jobs, list) else [jobs]
 
     def write_mail(self, job_description: str, links: list[str]) -> str:
         prompt_email = PromptTemplate.from_template(
             """
-            You are a professional job applicant.
+            You are Santhosh, an AI & Data Science Consultant at Santhosh AI Labs.
+
+            Santhosh AI Labs builds intelligent, data-driven solutions using
+            AI, automation, and analytics.
+
+            NOTE:
+            The portfolio links provided are representative demo and academic
+            projects showcasing capability, not client work.
 
             ### JOB DESCRIPTION:
             {job_description}
 
-            ### PORTFOLIO LINKS:
+            ### RELEVANT PORTFOLIO LINKS:
             {link_list}
 
             ### INSTRUCTION:
-            Write a personalized cold email for this job.
-            Rules:
-            - Do NOT mention any company unless present in the job description
-            - Do NOT use fake company names
-            - Professional, concise tone
-            - Highlight matching skills
+            Write a professional, personalized cold email for this role.
+            Guidelines:
+            - Do NOT mention any company unless stated in the job description
+            - Do NOT invent clients or experience
+            - Keep it concise and role-specific
+            - Highlight relevant skills and value
             - End with a polite call-to-action
+            - Avoid generic or repetitive phrasing
 
             ### EMAIL:
             """
